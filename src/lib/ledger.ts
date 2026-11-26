@@ -343,17 +343,19 @@ export function buyDeal(dealId: number, priceCents?: number): BuyResult {
 
 /** Watch, skip, or put a deal back. Returns the old status (for Undo). */
 export function setDealStatus(dealId: number, status: "watching" | "passed" | "new"): string | null {
-  const db = getDb();
-  const deal = db.prepare("SELECT title, short_title, status FROM deals WHERE id = ?").get(dealId) as
-    | { title: string; short_title: string | null; status: string } | undefined;
-  if (!deal || deal.status === "bought") return null;
-  db.prepare("UPDATE deals SET status = ? WHERE id = ?").run(status, dealId);
-  const name = short(deal);
-  if (status === "watching") log("watch", `Watching ${name}`, "deals", dealId);
-  else if (status === "passed") log("pass", `Skipped ${name}`, "deals", dealId);
-  else if (deal.status === "watching") log("unwatch", `Stopped watching ${name}`, "deals", dealId);
-  else if (deal.status === "passed") log("unpass", `Put ${name} back`, "deals", dealId);
-  return deal.status;
+  return getDb().transaction(() => {
+    const db = getDb();
+    const deal = db.prepare("SELECT title, short_title, status FROM deals WHERE id = ?").get(dealId) as
+      | { title: string; short_title: string | null; status: string } | undefined;
+    if (!deal || deal.status === "bought") return null;
+    db.prepare("UPDATE deals SET status = ? WHERE id = ?").run(status, dealId);
+    const name = short(deal);
+    if (status === "watching") log("watch", `Watching ${name}`, "deals", dealId);
+    else if (status === "passed") log("pass", `Skipped ${name}`, "deals", dealId);
+    else if (deal.status === "watching") log("unwatch", `Stopped watching ${name}`, "deals", dealId);
+    else if (deal.status === "passed") log("unpass", `Put ${name} back`, "deals", dealId);
+    return deal.status;
+  })();
 }
 
 export type SellResult = {
@@ -406,7 +408,10 @@ export function sellItem(invId: number, sellCents: number, feesCents: number): S
     if (before.totalProfit < goalCents && after.totalProfit >= goalCents) {
       reached = goalCents;
       setSetting("goal_done_cents", String(goalCents));
-      setSetting("goal_cents", String(nextGoal(goalCents)));
+      // One sale can jump past several tiers: move the goal past the new total.
+      let next = nextGoal(goalCents);
+      while (next <= after.totalProfit) next = nextGoal(next);
+      setSetting("goal_cents", String(next));
       log("goal", `Goal done: made ${money(goalCents)} profit.`);
     }
     const soldAt = (db.prepare("SELECT sold_at FROM inventory WHERE id = ?").get(invId) as { sold_at: string }).sold_at;
@@ -428,13 +433,15 @@ export function sellItem(invId: number, sellCents: number, feesCents: number): S
 }
 
 export function updateItem(invId: number, notes: string, status: "holding" | "listed") {
-  const db = getDb();
-  const item = db.prepare("SELECT title, short_title, status FROM inventory WHERE id = ?").get(invId) as
-    | { title: string; short_title: string | null; status: string } | undefined;
-  if (!item || item.status === "sold") return;
-  db.prepare("UPDATE inventory SET condition_notes = ?, status = ? WHERE id = ?").run(notes.slice(0, 2000), status, invId);
-  if (status === "listed" && item.status !== "listed") log("list", `Listed ${short(item)} for sale`, "inventory", invId);
-  if (status === "holding" && item.status === "listed") log("list", `Took ${short(item)} off the list`, "inventory", invId);
+  return getDb().transaction(() => {
+    const db = getDb();
+    const item = db.prepare("SELECT title, short_title, status FROM inventory WHERE id = ?").get(invId) as
+      | { title: string; short_title: string | null; status: string } | undefined;
+    if (!item || item.status === "sold") return;
+    db.prepare("UPDATE inventory SET condition_notes = ?, status = ? WHERE id = ?").run(notes.slice(0, 2000), status, invId);
+    if (status === "listed" && item.status !== "listed") log("list", `Listed ${short(item)} for sale`, "inventory", invId);
+    if (status === "holding" && item.status === "listed") log("list", `Took ${short(item)} off the list`, "inventory", invId);
+  })();
 }
 
 export function setListed(invId: number, listed: boolean) {
@@ -448,13 +455,15 @@ export function setListed(invId: number, listed: boolean) {
 export const NOTES_MAX = 500;
 
 export function setNotes(invId: number, notes: string) {
-  const item = getDb().prepare("SELECT status, short_title, title FROM inventory WHERE id = ?").get(invId) as
-    | { status: string; short_title: string | null; title: string } | undefined;
-  if (!item) throw new LedgerError("That item isn't in your stuff.");
-  const clean = notes.trim();
-  if (clean.length > NOTES_MAX) throw new LedgerError(`Keep notes under ${NOTES_MAX} letters.`, "notes");
-  getDb().prepare("UPDATE inventory SET condition_notes = ? WHERE id = ?").run(clean, invId);
-  log("note", `Notes on ${short(item)}: ${clean || "(cleared)"}`, "inventory", invId);
+  return getDb().transaction(() => {
+    const item = getDb().prepare("SELECT status, short_title, title FROM inventory WHERE id = ?").get(invId) as
+      | { status: string; short_title: string | null; title: string } | undefined;
+    if (!item) throw new LedgerError("That item isn't in your stuff.");
+    const clean = notes.trim();
+    if (clean.length > NOTES_MAX) throw new LedgerError(`Keep notes under ${NOTES_MAX} letters.`, "notes");
+    getDb().prepare("UPDATE inventory SET condition_notes = ? WHERE id = ?").run(clean, invId);
+    log("note", `Notes on ${short(item)}: ${clean || "(cleared)"}`, "inventory", invId);
+  })();
 }
 
 export const LESSONS = ["Paid too much", "Fees surprised me", "Took too long to sell"] as const;
@@ -482,10 +491,12 @@ export function askParent(dealId: number) {
 
 /** Parent tool: change the profit goal. */
 export function setGoal(goalCents: number) {
-  if (!Number.isInteger(goalCents) || goalCents <= 0) throw new LedgerError("Goal has to be more than $0.", "goal");
-  setSetting("goal_cents", String(goalCents));
-  getDb().prepare("DELETE FROM settings WHERE key = 'goal_done_cents'").run();
-  log("goal", `New goal: make ${money(goalCents)} profit.`);
+  return getDb().transaction(() => {
+    if (!Number.isInteger(goalCents) || goalCents <= 0) throw new LedgerError("Goal has to be more than $0.", "goal");
+    setSetting("goal_cents", String(goalCents));
+    getDb().prepare("DELETE FROM settings WHERE key = 'goal_done_cents'").run();
+    log("goal", `New goal: make ${money(goalCents)} profit.`);
+  })();
 }
 
 /** Date helper re-exported for pages. */

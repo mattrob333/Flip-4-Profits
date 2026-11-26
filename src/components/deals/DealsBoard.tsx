@@ -336,7 +336,7 @@ export function DealsBoard({
           )}
         </div>
         <aside className="ticket-col" aria-label="Selected deal">
-          {selected && <DealTicket ctx="side" {...ticketProps(selected)} />}
+          {selected && <DealTicket key={selected.id} ctx="side" {...ticketProps(selected)} />}
         </aside>
       </div>
     </>

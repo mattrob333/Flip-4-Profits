@@ -137,6 +137,15 @@ test("goal: reaching $100 profit sets the next goal", () => {
   assert.equal(g.justDone, "first $100");
 });
 
+test("goal: one big sale skips past every tier it already reached", () => {
+  const a = L.buyDeal(dealId("Switch OLED + 2 games")); // 210
+  L.sellItem(a.inventoryId, 51000, 0); // +300: past $100 and $250
+  assert.equal(L.getGoal().goalCents, 50000);
+  const b = L.buyDeal(dealId("Ryobi leaf blower")); // 35
+  L.sellItem(b.inventoryId, 25000, 0); // +215 → total 515
+  assert.equal(L.getGoal().goalCents, 100000);
+});
+
 test("skip and undo put the deal back", () => {
   const id = dealId("PS4 Slim 1TB");
   L.setDealStatus(id, "watching");
