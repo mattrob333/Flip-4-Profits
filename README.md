@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flip 4 Profits
 
-## Getting Started
+A practice app for learning to flip things for profit. You start with $500 of
+pretend cash, look at deals near Alpharetta, "buy" them, then sell them and watch
+your money change. Nothing real is bought or sold.
 
-First, run the development server:
+Screens: **Home** (your worth, goal, what happened), **Deals** (things to flip),
+**My Stuff** (what you hold, what you sold, every dollar in and out).
+
+## Run it on this computer (npm)
+
+You need Node.js 20 or newer.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run build
+npm start            # open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For working on the code, use `npm run dev` instead of build + start.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To use it from a tablet on the home Wi-Fi, open `http://<this-computer's-IP>:3000`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run it with Docker Compose
 
-## Learn More
+```bash
+docker compose up -d --build    # open http://localhost:3000
+docker compose logs -f          # see what it's doing
+docker compose down             # stop (your data stays)
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Start over, or load the demo
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| What | npm | Docker Compose |
+|---|---|---|
+| Fresh start: $500 and the 7 sample deals | `npm run seed:reset` | `docker compose exec app node seed.cjs fresh` |
+| Demo (mid-game): drill bought $80 and sold $155, leaf blower held at $35 | `npm run seed:demo` | `docker compose exec app node seed.cjs demo` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Both wipe the current game. Reload the page afterwards.
 
-## Deploy on Vercel
+## Where the data lives
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Everything is in one SQLite file, `flip.db`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- npm: `./data/flip.db` in this folder. Set `DATA_DIR=/some/folder` to put it somewhere else.
+- Docker Compose: the `flip-data` volume, mounted at `/data` in the container.
+  Back it up with `docker compose cp app:/data/flip.db ./flip-backup.db`.
+
+Money is stored in whole cents. The first time the app opens an empty folder,
+it creates a fresh game ($500).
+
+## Settings (environment)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DATA_DIR` | `./data` (Docker: `/data`) | Folder for `flip.db` |
+| `APP_TZ` | `America/New_York` | Time zone for "Today" and dates |
+| `STARTING_BANKROLL_CENTS` | `50000` | Starting cash for a fresh game |
+| `PORT` | `3000` | Web port |
+
+The profit goal ("Make $100 profit") is stored in the database (`settings.goal_cents`)
+and moves up by itself when it is reached ($100, then $250, $500, ...).
+
+## Checks
+
+```bash
+npm test        # ledger math tests
+npm run lint
+npx tsc --noEmit
+```
+
+See `AGENTS.md` for how the code is built and `DESIGN.md` for how it should look.

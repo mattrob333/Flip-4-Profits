@@ -1,103 +1,171 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { ArrowIcon, ChevIcon } from "@/components/Icons";
+import { ProductImage } from "@/components/ProductImage";
+import { MoneyLadder } from "@/components/MoneyLadder";
+import { Enter } from "@/components/Enter";
+import { WorthPanel } from "@/components/dashboard/WorthPanel";
+import { CATEGORIES } from "@/lib/categories";
+import { dayLabelRel, todayKey } from "@/lib/dates";
+import { getBalance, getLedger, getWorthSeries, listDeals, type LedgerEntry } from "@/lib/ledger";
+import { flow, money, signed } from "@/lib/money";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default function Dashboard() {
+  const b = getBalance();
+  const today = todayKey();
+  const series = getWorthSeries();
+  const ledger = getLedger();
+  const deals = listDeals().slice(0, 3);
+  const fresh = b.flips === 0 && b.itemsHeld === 0;
+  const feed = [...ledger].reverse().slice(0, 4);
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <Enter screen="home" as="section" className="dash" aria-label="Dashboard">
+      <WorthPanel
+        worthCents={b.netWorth}
+        cashCents={b.cash}
+        stuffCents={b.inventoryCost}
+        startCents={b.deposits}
+        todayKey={today}
+        fresh={fresh}
+        hasSells={b.flips > 0}
+        profitCents={b.totalProfit}
+        series={series}
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="scout o2">
+        <Button asChild size="scout" className="md:flex-none md:px-7">
+          <Link href="/deals">
+            Scout deals <ArrowIcon />
+          </Link>
+        </Button>
+        <div className="chips fade-x" role="group" aria-label="Scout a category">
+          {CATEGORIES.map((c) => (
+            <Chip asChild key={c.id}>
+              <Link href={`/deals?cat=${c.id}`}>{c.label}</Link>
+            </Chip>
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+
+      <div className="rail">
+        {/* One card: the ladder (desktop; phones show it in the worth card) and your flip stats. */}
+        <section className="panel goal o3" aria-labelledby="ladderH">
+          <h2 className="eyebrow ld-only" id="ladderH">Money ladder</h2>
+          <MoneyLadder profitCents={b.totalProfit} className="ld-only" />
+          <dl className="week">
+            <div>
+              <dt className="cap">This week</dt>
+              <dd className={"num" + (b.weekProfit > 0 ? " up" : b.weekProfit < 0 ? " down" : "")}>
+                {b.flips ? signed(b.weekProfit) : "$0"}
+              </dd>
+            </div>
+            <div>
+              <dt className="cap">Flips done</dt>
+              <dd className="num">{b.flips}</dd>
+            </div>
+            <div>
+              <dt className="cap">
+                Best flip<span className="wide-rail">{b.bestFlip ? ": " + b.bestFlip.title : ""}</span>
+              </dt>
+              <dd className={"num" + (b.bestFlip && b.bestFlip.profit > 0 ? " up" : "")}>
+                {b.bestFlip ? signed(b.bestFlip.profit) : "None yet"}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div className="panel rail-panel o6">
+          <div className="sec-head">
+            <h2>What happened</h2>
+            <Link className="link" href="/stuff?tab=ledger">
+              See all <ChevIcon />
+            </Link>
+          </div>
+          <ul className="rows feed">
+            {feed.map((l) => (
+              <FeedItem key={l.kind + l.id} l={l} today={today} />
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="o5">
+        <div className="sec-head">
+          <h2>Top deals near you</h2>
+          <Link className="link" href="/deals">
+            See all <ChevIcon />
+          </Link>
+        </div>
+        {deals.length ? (
+          <ul className="rows">
+            {deals.map((d) => (
+              <li key={d.id}>
+                <Link className="drow" href={`/deals?deal=${d.id}`}>
+                  <ProductImage kind={d.thumb} photoUrl={d.photoUrl} size={64} />
+                  <span className="min-w-0">
+                    <span className="dt">{d.short}</span>
+                    <span className="dm">
+                      <span className="pair-inline tab">
+                        {money(d.askingCents)} → {money(d.sellCents)} ·{" "}
+                      </span>
+                      {d.distance} mi<span className="wide-only"> · {d.sourceLabel}</span>
+                    </span>
+                  </span>
+                  <span className="pair pair-col tab">
+                    <span className="cap block">You pay → Sells for</span>
+                    {money(d.askingCents)} → {money(d.sellCents)}
+                  </span>
+                  <span className="pr">
+                    <span className="cap block">could make</span>
+                    <span className={"num proj" + (d.profitCents < 0 ? " neg" : "")}>{signed(d.profitCents)}</span>
+                    {d.feesCents > 0 && <span className="fee-note">after {money(d.feesCents)} fees</span>}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="empty">
+            <h3>No deals right now</h3>
+            <p>Scout finds things near Alpharetta you could flip. New ones show up after the next scout.</p>
+            <Button asChild>
+              <Link href="/deals">Scout deals</Link>
+            </Button>
+          </div>
+        )}
+      </div>
+    </Enter>
+  );
+}
+
+function FeedItem({ l, today }: { l: LedgerEntry; today: string }) {
+  const color =
+    l.kind === "buy" ? "var(--info)" : l.kind === "sell" ? ((l.profitCents ?? 0) < 0 ? "var(--loss)" : "var(--profit)") : "var(--t3)";
+  return (
+    <li>
+      <div className="fi">
+        <span className="dot" style={{ background: color }} aria-hidden="true" />
+        <div className="min-w-0">
+          <div className="ft">{l.what}</div>
+          <div className="fs">
+            {l.kind === "sell" && (
+              <>
+                <span className={(l.profitCents ?? 0) < 0 ? "down" : "up"}>
+                  {signed(l.profitCents ?? 0)} {(l.profitCents ?? 0) < 0 ? "loss" : "profit"}
+                </span>
+                {" · "}
+              </>
+            )}
+            {l.note ? l.note + " · " : ""}
+            {dayLabelRel(l.dayKey, today)}
+          </div>
+        </div>
+        <div className={"fa" + (l.kind === "buy" ? " buy" : "")}>{l.kind === "start" ? money(l.amountCents) : flow(l.amountCents)}</div>
+      </div>
+    </li>
   );
 }
