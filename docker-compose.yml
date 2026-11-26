@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: flip4profits
+    ports:
+      - "3000:3000"
+    environment:
+      DATA_DIR: /data
+      APP_TZ: America/New_York
+    volumes:
+      - flip-data:/data
+    restart: unless-stopped
+
+volumes:
+  flip-data:
