@@ -15,9 +15,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        go: "bg-accent text-ink shadow-[0_4px_0_var(--lip)] enabled:active:shadow-[0_2px_0_var(--lip)] [&:is(a):active]:shadow-[0_2px_0_var(--lip)]",
+        go: "bg-accent text-ink hover:bg-[#ffda5c] disabled:hover:bg-accent shadow-[0_4px_0_var(--lip)] enabled:active:shadow-[0_2px_0_var(--lip)] [&:is(a):active]:shadow-[0_2px_0_var(--lip)]",
         secondary:
-          "bg-s2 text-t1 shadow-ring font-body [font-stretch:100%] normal-case tracking-normal font-semibold text-base hover:shadow-ring-h hover:bg-s3 aria-pressed:shadow-[inset_0_0_0_1px_var(--t2)]",
+          "bg-s2 text-t1 font-body [font-stretch:100%] normal-case tracking-normal font-semibold text-base hover:bg-s3 aria-pressed:shadow-[inset_0_0_0_1.5px_var(--t2)]",
       },
       size: {
         default: "",

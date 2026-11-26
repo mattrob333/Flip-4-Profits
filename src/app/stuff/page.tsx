@@ -1,17 +1,18 @@
 import { Ledger } from "@/components/stuff/Ledger";
 import { StuffView } from "@/components/stuff/StuffView";
-import { getBalance, getGoal, getLedger, listHoldings, listSold } from "@/lib/ledger";
+import { getBalance, getLedger, listHoldings, listSold } from "@/lib/ledger";
 import { money } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "My Stuff · Flip 4 Profits" };
 
-export default function StuffPage() {
+export default async function StuffPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const tab = sp.tab === "ledger" || sp.tab === "sold" ? sp.tab : "hold";
   const b = getBalance();
   const holdings = listHoldings();
   const sold = listSold();
   const ledger = getLedger();
-  const g = getGoal();
   return (
     <>
       <div className="page-head">
@@ -23,10 +24,10 @@ export default function StuffPage() {
         </div>
       </div>
         <StuffView
+          initialTab={tab}
           holdings={holdings}
           sold={sold}
           ledger={<Ledger entries={ledger} cashCents={b.cash} />}
-          goal={{ flips: b.flips, totalProfitCents: b.totalProfit, goalCents: g.goalCents, doneCents: g.doneCents }}
         />
     </>
   );

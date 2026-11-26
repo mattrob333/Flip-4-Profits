@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { MoneyInput } from "@/components/ui/money-input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BookmarkIcon, FilterIcon, SortIcon, TriIcon } from "@/components/Icons";
-import { Thumb } from "@/components/Thumb";
+import { ProductImage, ScorePill } from "@/components/ProductImage";
 import { DealTicket } from "./DealTicket";
 import { CATEGORIES } from "@/lib/categories";
-import { money, parseMoney, scoreWord, signed, tri } from "@/lib/money";
+import { money, parseMoney, signed } from "@/lib/money";
 import { prefersReducedMotion } from "@/lib/motion";
 import type { DealView } from "@/lib/ledger";
 
@@ -20,7 +20,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "title", label: "Item" },
   { key: "buy", label: "You pay" },
   { key: "sell", label: "Sells for" },
-  { key: "profit", label: "Profit" },
+  { key: "profit", label: "Could make" },
   { key: "score", label: "Score" },
   { key: "mi", label: "Miles" },
 ];
@@ -127,8 +127,8 @@ export function DealsBoard({
   return (
     <>
       <div className="filters">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="chips" role="group" aria-label="Category">
+        <div className="flex items-center gap-2 min-w-0 lg:flex-1">
+          <div className="chips fade-x" role="group" aria-label="Category">
             {cats.map((c) => (
               <Chip key={c.id} aria-pressed={cat === c.id} onClick={() => setCat(c.id)}>
                 {c.label}
@@ -208,15 +208,22 @@ export function DealsBoard({
               <table className="dtable" aria-label="Deals. Choose a row to see the full deal.">
                 <thead>
                   <tr>
+                    <th scope="col" className="th-img">
+                      <span className="sr-only">Photo</span>
+                    </th>
                     {SORTS.map((s) => (
                       <th
                         key={s.key}
                         scope="col"
+                        className={"c-" + s.key}
                         aria-sort={sort === s.key ? (dir < 0 ? "descending" : "ascending") : undefined}
                       >
+                        {/* Numeric columns are right-aligned: the arrow goes first so the label's
+                            right edge lines up with the numbers under it. */}
                         <button type="button" onClick={() => sortBy(s.key)}>
+                          {s.key !== "title" && <SortIcon up={sort === s.key && dir > 0} />}
                           {s.label}
-                          <SortIcon up={sort === s.key && dir > 0} />
+                          {s.key === "title" && <SortIcon up={sort === s.key && dir > 0} />}
                         </button>
                       </th>
                     ))}
@@ -232,41 +239,33 @@ export function DealsBoard({
                       onClick={() => setSel(d.id)}
                       onKeyDown={(e) => rowKey(e, d.id)}
                     >
+                      <td className="td-img">
+                        <ProductImage kind={d.thumb} photoUrl={d.photoUrl} size={64} />
+                      </td>
                       <td>
                         <div className="it">
-                          <Thumb kind={d.thumb} category={d.category} size={44} />
                           <div className="min-w-0">
-                            <div className="dt">{d.short}</div>
+                            <div className="dt" title={d.title}>{d.short}</div>
                             <div className="dm">
-                              {d.sourceLabel}
+                              <CheckBadge flags={d.flags} />
                               {d.status === "watching" && (
                                 <span className="watch-mark" aria-label="Watching" role="img">
                                   <BookmarkIcon filled />
                                 </span>
                               )}
-                              {d.flags.length > 0 && (
-                                <>
-                                  {" · "}
-                                  <span
-                                    className="inline-flex items-center gap-1 text-warn"
-                                    aria-label={`${d.flags.length} thing${d.flags.length > 1 ? "s" : ""} to check`}
-                                    role="img"
-                                  >
-                                    <TriIcon />
-                                    {d.flags.length}
-                                  </span>
-                                </>
-                              )}
+                              <span className="src-l" title={d.sourceLabel}>{d.sourceLabel}</span>
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="pay">{money(d.askingCents)}</td>
-                      <td className="sel-p">~{money(d.sellCents)}</td>
-                      <td className={"prof " + (d.profitCents >= 0 ? "up" : "down")}>{signed(d.profitCents)}</td>
+                      <td className="sel-p">{money(d.sellCents)}</td>
+                      <td className="prof">
+                        <span className={"proj" + (d.profitCents < 0 ? " neg" : "")}>{signed(d.profitCents)}</span>
+                        {d.feesCents > 0 && <span className="fee-note">after {money(d.feesCents)} fees</span>}
+                      </td>
                       <td className="sc">
-                        {d.score}
-                        <small>{scoreWord(d.score)}</small>
+                        <ScorePill score={d.score} />
                       </td>
                       <td className="mi">{d.distance}</td>
                     </tr>
@@ -283,14 +282,17 @@ export function DealsBoard({
                   ) : (
                     <li key={d.id}>
                       <button type="button" className="mrow" aria-expanded={false} onClick={() => pickMobile(d.id)}>
-                        <Thumb kind={d.thumb} category={d.category} size={52} />
+                        <ProductImage kind={d.thumb} photoUrl={d.photoUrl} size={64} />
                         <span className="min-w-0">
                           <span className="dt">{d.short}</span>
                           <span className="dm">
                             <span className="tab">
-                              {money(d.askingCents)} → ~{money(d.sellCents)}
-                            </span>{" "}
-                            · {d.score} {scoreWord(d.score)}
+                              {money(d.askingCents)} → {money(d.sellCents)}
+                            </span>
+                          </span>
+                          <span className="dm">
+                            <ScorePill score={d.score} />
+                            <CheckBadge flags={d.flags} short />
                             {d.status === "watching" && (
                               <span className="watch-mark" aria-label="Watching" role="img">
                                 <BookmarkIcon filled />
@@ -299,10 +301,9 @@ export function DealsBoard({
                           </span>
                         </span>
                         <span className="pr">
-                          <span className={"num " + (d.profitCents >= 0 ? "up" : "down")}>{signed(d.profitCents)}</span>
-                          <span className="cap">
-                            {d.profitCents >= 0 ? "profit" : "loss"} {tri(d.profitCents)}
-                          </span>
+                          <span className="cap block">could make</span>
+                          <span className={"num proj" + (d.profitCents < 0 ? " neg" : "")}>{signed(d.profitCents)}</span>
+                          {d.feesCents > 0 && <span className="fee-note">after {money(d.feesCents)} fees</span>}
                         </span>
                       </button>
                     </li>
@@ -339,5 +340,18 @@ export function DealsBoard({
         </aside>
       </div>
     </>
+  );
+}
+
+/** Things to check before buying (risk flags), as one labelled badge. "Bring a parent" is a note, not a risk. */
+function CheckBadge({ flags, short }: { flags: string[]; short?: boolean }) {
+  const risks = flags.filter((f) => !/parent/i.test(f));
+  if (!risks.length) return null;
+  const label = `${risks.length} thing${risks.length > 1 ? "s" : ""} to check`;
+  return (
+    <span className="badge warn" title={risks.join(" · ")}>
+      <TriIcon size={13} />
+      {short ? `${risks.length} to check` : label}
+    </span>
   );
 }

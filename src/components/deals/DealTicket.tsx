@@ -7,11 +7,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FieldError, MoneyInput } from "@/components/ui/money-input";
 import { useToast } from "@/components/ui/toast";
-import { ArrowIcon, BookmarkIcon, TriIcon, XIcon } from "@/components/Icons";
-import { Thumb } from "@/components/Thumb";
-import { Score } from "@/components/Score";
+import { ArrowIcon, BookmarkIcon, InfoIcon, TriIcon, XIcon } from "@/components/Icons";
+import { ProductImage } from "@/components/ProductImage";
 import { askParentAction, buyAction, skipAction, undoSkipAction, watchAction } from "@/app/actions";
-import { ALL_IN_SHARE, cashShare, money, parseMoney, signed, suggestedOffer, tri } from "@/lib/money";
+import { ALL_IN_SHARE, cashShare, money, parseMoney, signed, suggestedOffer } from "@/lib/money";
 import { announceMoney, prefersReducedMotion } from "@/lib/motion";
 import type { DealView } from "@/lib/ledger";
 
@@ -130,19 +129,26 @@ export function DealTicket({
   const share = cashShare(off, cashCents);
   const cantAfford = !bad && off > cashCents;
   const allIn = !bad && !cantAfford && share > ALL_IN_SHARE;
+  // The offer hint and the can't-afford card must agree: only suggest an offer
+  // you could actually pay.
+  const tryOffer = d.askingCents >= 6000 ? suggestedOffer(d.askingCents) : null;
+  const tryFits = tryOffer != null && tryOffer <= cashCents;
+  const offerHint =
+    tryOffer == null
+      ? "Already cheap. Asking price is fine."
+      : tryFits
+        ? `Sellers often take about 10% less. Try ${money(tryOffer)}.`
+        : "Sellers often take about 10% less.";
 
   return (
     <article className="ticket" data-ticket={d.id} aria-label={d.title}>
+      <ProductImage kind={d.thumb} photoUrl={d.photoUrl} size="hero" score={d.score} />
       {stamped && <span className="stamp bought">BOUGHT</span>}
       <div className="tk-head">
-        <Thumb kind={d.thumb} category={d.category} size={ctx === "side" ? 88 : 64} />
-        <div className="min-w-0">
-          <h2 className="tk-title">{d.title}</h2>
-          <div className="tk-meta">
-            {d.sourceLabel} · {d.distance} mi from Alpharetta
-          </div>
+        <h2 className="tk-title">{d.title}</h2>
+        <div className="tk-meta">
+          {d.sourceLabel} · {d.distance} mi from Alpharetta
         </div>
-        <Score score={d.score} />
       </div>
 
       <div className="spread">
@@ -155,45 +161,56 @@ export function DealTicket({
           <ArrowIcon />
         </span>
         <div className="pb sell">
-          <span className="pb-l">Sells for</span>
-          <span className="num">~{money(d.sellCents)}</span>
-          <span className="src">From eBay sold prices</span>
+          <span className="pb-l">Usually sells for</span>
+          <span className="num">{money(d.sellCents)}</span>
+          <span className="src">Recent eBay sales</span>
         </div>
       </div>
 
       <div>
         <div className="tk-profit">
-          <span className={"num big " + (profit >= 0 ? "up" : "down")}>{signed(profit)}</span>
-          <span className={"lbl " + (profit >= 0 ? "up" : "down")}>
-            {profit >= 0 ? "profit" : "loss"} {tri(profit)}
-          </span>
-          <span className="fees">
-            after {money(d.feesCents)} fees{" "}
-            <button
-              type="button"
-              className="qbtn"
-              aria-expanded={hint}
-              aria-controls={hintId}
-              aria-label="What are fees?"
-              onClick={() => setHint((h) => !h)}
-            >
-              ?
-            </button>
-          </span>
+          <span className="lbl">could make</span>
+          <span className={"num big proj" + (profit < 0 ? " neg" : "")}>{signed(profit)}</span>
+          {d.feesCents ? (
+            <span className="fees">
+              after {money(d.feesCents)} fees{" "}
+              <button
+                type="button"
+                className="qbtn"
+                aria-expanded={hint}
+                aria-controls={hintId}
+                aria-label="What are fees?"
+                onClick={() => setHint((h) => !h)}
+              >
+                ?
+              </button>
+            </span>
+          ) : (
+            <span className="fees">no selling fees</span>
+          )}
         </div>
-        <p className="hint" id={hintId} hidden={!hint}>
-          Fees: money the selling site keeps.
-        </p>
+        {d.feesCents > 0 && (
+          <p className="hint" id={hintId} hidden={!hint}>
+            Fees: money the selling site keeps.
+          </p>
+        )}
       </div>
 
       {d.flags.length > 0 && (
         <div className="flags">
-          {d.flags.map((f) => (
-            <span key={f} className="flag">
-              <TriIcon />
-              {f}
-            </span>
-          ))}
+          {d.flags.map((f) =>
+            /parent/i.test(f) ? (
+              <span key={f} className="flag note">
+                <InfoIcon />
+                {f}
+              </span>
+            ) : (
+              <span key={f} className="flag">
+                <TriIcon />
+                {f}
+              </span>
+            ),
+          )}
         </div>
       )}
       <p className="why">{d.why}</p>
@@ -215,11 +232,7 @@ export function DealTicket({
               if (e.key === "Enter") buy();
             }}
           />
-          <span className="cap">
-            {d.askingCents >= 6000
-              ? `Sellers often take about 10% less. Try ${money(suggestedOffer(d.askingCents))}.`
-              : "Already cheap. Asking price is fine."}
-          </span>
+          <span className="cap">{offerHint}</span>
         </div>
         <FieldError id={errId}>{offerErr}</FieldError>
       </div>
@@ -239,14 +252,25 @@ export function DealTicket({
               <i style={{ width: (cashCents / off) * 100 + "%" }} />
             </div>
             <div className="cap">
-              You have {money(cashCents)} cash. This costs {money(off)}. The profit is still why it&apos;s tempting.
+              You have {money(cashCents)} cash. This costs {money(off)}.
             </div>
+            {tryFits && tryOffer != null && tryOffer < off && (
+              <div className="fit">
+                <span>Offer {money(tryOffer)} or less to afford it.</span>
+                <Button variant="secondary" size="sm" onClick={() => setOffer(String(tryOffer / 100))}>
+                  Offer {money(tryOffer)}
+                </Button>
+              </div>
+            )}
+            <Button variant="secondary" onClick={ask}>
+              Ask a parent to help
+            </Button>
             <div className="two">
               <Button variant="secondary" aria-pressed={watching} onClick={watch}>
-                <BookmarkIcon filled={watching} /> {watching ? "Watching" : "Watch it"}
+                <BookmarkIcon filled={watching} /> {watching ? "Watching" : "Watch"}
               </Button>
-              <Button variant="secondary" onClick={ask}>
-                Ask a parent
+              <Button variant="secondary" onClick={skip}>
+                <XIcon /> Skip
               </Button>
             </div>
           </div>

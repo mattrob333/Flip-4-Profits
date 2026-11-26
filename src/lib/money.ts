@@ -59,13 +59,14 @@ export function saleProfit(paidCents: number, soldCents: number, feesCents: numb
   return soldCents - feesCents - paidCents;
 }
 
-export type ScoreWord = "Steal" | "Great" | "OK" | "Risky";
+export type ScoreWord = "Great" | "OK" | "Risky";
 export function scoreWord(score: number): ScoreWord {
-  return score >= 90 ? "Steal" : score >= 75 ? "Great" : score >= 60 ? "OK" : "Risky";
+  return score >= 75 ? "Great" : score >= 60 ? "OK" : "Risky";
 }
-/** How many of the 5 score segments are lit. */
-export function scoreSegments(score: number) {
-  return score >= 90 ? 5 : score >= 75 ? 4 : score >= 60 ? 3 : score >= 45 ? 2 : 1;
+/** Score tier for the pill: great (75+), ok (60-74), risky (under 60). */
+export type ScoreTier = "great" | "ok" | "risky";
+export function scoreTier(score: number): ScoreTier {
+  return score >= 75 ? "great" : score >= 60 ? "ok" : "risky";
 }
 
 /** Share of your cash a buy would use (0..). */
@@ -75,10 +76,12 @@ export function cashShare(priceCents: number, cashCents: number) {
 }
 export const ALL_IN_SHARE = 0.8;
 
-/** Goal tiers after the first one: 100 → 250 → 500 → 1,000 → 2,000 ... */
+/** Goal tiers follow the money ladder: 100 → 250 → 500 → 1,000 → 2,500, then doubling. */
 export function nextGoal(goalCents: number) {
   if (goalCents < 25000) return 25000;
   if (goalCents < 50000) return 50000;
+  if (goalCents < 100000) return 100000;
+  if (goalCents < 250000) return 250000;
   return goalCents * 2;
 }
 

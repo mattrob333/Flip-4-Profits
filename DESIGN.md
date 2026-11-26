@@ -57,7 +57,7 @@ How the app should look. (How to build it lives in AGENTS.md in the repo.)
 **Surfaces & shape**
 - Depth from layered transparent rings/shadows, not heavy borders (dark ring `0 0 0 1px rgb(255 255 255 / .08)`, hover .12). Real borders only on inputs and table dividers.
 - Concentric radii: outer = inner + padding. Cards 16-20px, inner chips 8-12px.
-- Image/emoji tiles get a 1px inset outline at white 10%.
+- Product tiles are light (#F2F1EC), radius 12 (16 at 96px+), no outline.
 
 **Motion**
 - Press: scale .96, 150ms ease-out (disabled never scales). Hover color <=150ms, inside `@media (hover:hover)`.
@@ -80,6 +80,6 @@ How the app should look. (How to build it lives in AGENTS.md in the repo.)
 - No glowing / neon-shadow buttons. No glassmorphism blur cards as decoration.
 - No serif headline with one italic word.
 - No row of four identical stat cards. (Three equal stat cards in a row is also suspect; prefer one hero number + supporting details.)
-- No emoji as design elements (plan-design-review blacklist). Item thumbnails use real photos when scraping exists; until then, drawn product tiles (simple SVG silhouette on a category-tinted tile), not emoji.
+- No emoji as design elements (plan-design-review blacklist). Item images use real listing photos when scraping exists; until then, drawn product shots (flat 2-3 tone SVG with highlights) on a light #F2F1EC tile, StockX style. Never line icons or emoji.
 - No app UI made of uniform stacked cards; no uniform corner radius on everything; no system-ui as the primary font; no centered-everything layouts; no pure #000 background.
 - No generic "Welcome back 👋" header, no sparkles icon for AI.

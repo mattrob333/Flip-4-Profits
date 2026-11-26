@@ -2,15 +2,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ArrowIcon, ChevIcon } from "@/components/Icons";
-import { Thumb } from "@/components/Thumb";
-import { GoalBar } from "@/components/GoalBar";
+import { ProductImage } from "@/components/ProductImage";
+import { MoneyLadder } from "@/components/MoneyLadder";
 import { Enter } from "@/components/Enter";
 import { WorthPanel } from "@/components/dashboard/WorthPanel";
 import { CATEGORIES } from "@/lib/categories";
 import { dayLabelRel, todayKey } from "@/lib/dates";
-import { goalInfo } from "@/lib/goal";
-import { getBalance, getGoal, getLedger, getWorthSeries, listDeals, type LedgerEntry } from "@/lib/ledger";
-import { flow, money, signed, tri } from "@/lib/money";
+import { getBalance, getLedger, getWorthSeries, listDeals, type LedgerEntry } from "@/lib/ledger";
+import { flow, money, signed } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +19,8 @@ export default function Dashboard() {
   const series = getWorthSeries();
   const ledger = getLedger();
   const deals = listDeals().slice(0, 3);
-  const goal = goalInfo({ flips: b.flips, totalProfitCents: b.totalProfit, ...getGoal() });
   const fresh = b.flips === 0 && b.itemsHeld === 0;
-  const feed = [...ledger].reverse().slice(0, 5);
+  const feed = [...ledger].reverse().slice(0, 4);
 
   return (
     <Enter screen="home" as="section" className="dash" aria-label="Dashboard">
@@ -31,10 +29,10 @@ export default function Dashboard() {
         cashCents={b.cash}
         stuffCents={b.inventoryCost}
         startCents={b.deposits}
-        startKey={b.startKey}
         todayKey={today}
         fresh={fresh}
         hasSells={b.flips > 0}
+        profitCents={b.totalProfit}
         series={series}
       />
 
@@ -44,7 +42,7 @@ export default function Dashboard() {
             Scout deals <ArrowIcon />
           </Link>
         </Button>
-        <div className="chips" role="group" aria-label="Scout a category">
+        <div className="chips fade-x" role="group" aria-label="Scout a category">
           {CATEGORIES.map((c) => (
             <Chip asChild key={c.id}>
               <Link href={`/deals?cat=${c.id}`}>{c.label}</Link>
@@ -54,40 +52,38 @@ export default function Dashboard() {
       </div>
 
       <div className="rail">
-        <div className={"panel goal o3" + (goal.justDone ? " done" : "")}>
-          <div className="eyebrow">{goal.justDone ? `Goal done: ${goal.justDone} · Next goal` : "Your goal"}</div>
-          <h3>{goal.title}</h3>
-          <GoalBar val={goal.val} max={goal.max} label={goal.title} />
-          <div className="cap">
-            <span>{goal.left}</span>
-            <span>{goal.unit === "profit" ? "Profit from sells" : ""}</span>
-          </div>
-        </div>
-
-        <div className="o4">
-          <div className="week">
+        {/* One card: the ladder (desktop; phones show it in the worth card) and your flip stats. */}
+        <section className="panel goal o3" aria-labelledby="ladderH">
+          <h2 className="eyebrow ld-only" id="ladderH">Money ladder</h2>
+          <MoneyLadder profitCents={b.totalProfit} className="ld-only" />
+          <dl className="week">
             <div>
-              <span className={"num" + (b.weekProfit > 0 ? " up" : b.weekProfit < 0 ? " down" : "")}>
+              <dt className="cap">This week</dt>
+              <dd className={"num" + (b.weekProfit > 0 ? " up" : b.weekProfit < 0 ? " down" : "")}>
                 {b.flips ? signed(b.weekProfit) : "$0"}
-              </span>
-              <span className="cap">This week</span>
+              </dd>
             </div>
             <div>
-              <span className="num">{b.flips}</span>
-              <span className="cap">Flips done</span>
+              <dt className="cap">Flips done</dt>
+              <dd className="num">{b.flips}</dd>
             </div>
             <div>
-              <span className={"num" + (b.bestFlip && b.bestFlip.profit > 0 ? " up" : "")}>
+              <dt className="cap">
+                Best flip<span className="wide-rail">{b.bestFlip ? ": " + b.bestFlip.title : ""}</span>
+              </dt>
+              <dd className={"num" + (b.bestFlip && b.bestFlip.profit > 0 ? " up" : "")}>
                 {b.bestFlip ? signed(b.bestFlip.profit) : "None yet"}
-              </span>
-              <span className="cap">Best flip{b.bestFlip ? ": " + b.bestFlip.title.split(" ")[0] : ""}</span>
+              </dd>
             </div>
-          </div>
-        </div>
+          </dl>
+        </section>
 
         <div className="panel rail-panel o6">
           <div className="sec-head">
             <h2>What happened</h2>
+            <Link className="link" href="/stuff?tab=ledger">
+              See all <ChevIcon />
+            </Link>
           </div>
           <ul className="rows feed">
             {feed.map((l) => (
@@ -109,25 +105,24 @@ export default function Dashboard() {
             {deals.map((d) => (
               <li key={d.id}>
                 <Link className="drow" href={`/deals?deal=${d.id}`}>
-                  <Thumb kind={d.thumb} category={d.category} size={48} />
+                  <ProductImage kind={d.thumb} photoUrl={d.photoUrl} size={64} />
                   <span className="min-w-0">
                     <span className="dt">{d.short}</span>
                     <span className="dm">
                       <span className="pair-inline tab">
-                        {money(d.askingCents)} → ~{money(d.sellCents)} ·{" "}
+                        {money(d.askingCents)} → {money(d.sellCents)} ·{" "}
                       </span>
                       {d.distance} mi<span className="wide-only"> · {d.sourceLabel}</span>
                     </span>
                   </span>
-                  <span className="pair pair-col">
+                  <span className="pair pair-col tab">
                     <span className="cap block">You pay → Sells for</span>
-                    {money(d.askingCents)} → ~{money(d.sellCents)}
+                    {money(d.askingCents)} → {money(d.sellCents)}
                   </span>
                   <span className="pr">
-                    <span className={"num " + (d.profitCents >= 0 ? "up" : "down")}>{signed(d.profitCents)}</span>
-                    <span className="cap">
-                      {d.profitCents >= 0 ? "profit" : "loss"} {tri(d.profitCents)}
-                    </span>
+                    <span className="cap block">could make</span>
+                    <span className={"num proj" + (d.profitCents < 0 ? " neg" : "")}>{signed(d.profitCents)}</span>
+                    {d.feesCents > 0 && <span className="fee-note">after {money(d.feesCents)} fees</span>}
                   </span>
                 </Link>
               </li>
@@ -169,10 +164,7 @@ function FeedItem({ l, today }: { l: LedgerEntry; today: string }) {
             {dayLabelRel(l.dayKey, today)}
           </div>
         </div>
-        <div className="fa">
-          {l.kind === "start" ? money(l.amountCents) : flow(l.amountCents)}
-          <small>cash {money(l.cashAfterCents)}</small>
-        </div>
+        <div className={"fa" + (l.kind === "buy" ? " buy" : "")}>{l.kind === "start" ? money(l.amountCents) : flow(l.amountCents)}</div>
       </div>
     </li>
   );

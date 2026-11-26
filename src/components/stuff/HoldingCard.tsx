@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/money-input";
 import { useToast } from "@/components/ui/toast";
 import { ArrowIcon, CheckIcon } from "@/components/Icons";
-import { Thumb } from "@/components/Thumb";
+import { ProductImage } from "@/components/ProductImage";
 import { listedAction, notesAction } from "@/app/actions";
-import { money, signed, tri } from "@/lib/money";
+import { money, signed } from "@/lib/money";
 import type { HoldingView } from "@/lib/ledger";
 
 const NOTES_MAX = 500;
@@ -50,7 +50,7 @@ export function HoldingCard({ item: h, onSell }: { item: HoldingView; onSell: ()
   return (
     <article className="hold" aria-label={h.title}>
       <div className="hold-top">
-        <Thumb kind={h.thumb} category={h.category} size={64} />
+        <ProductImage kind={h.thumb} photoUrl={h.photoUrl} size={96} />
         <div className="min-w-0">
           <h3>{h.title}</h3>
           <div className="meta">
@@ -121,17 +121,15 @@ export function HoldingCard({ item: h, onSell }: { item: HoldingView; onSell: ()
           <ArrowIcon />
         </span>
         <div className="pb sell">
-          <span className="pb-l">Sells for</span>
-          <span className="num">~{money(h.estSellCents)}</span>
+          <span className="pb-l">Usually sells for</span>
+          <span className="num">{money(h.estSellCents)}</span>
         </div>
       </div>
       <div className="pot">
-        <span className={"num " + (potential >= 0 ? "up" : "down")}>{signed(potential)}</span>
-        <span className={potential >= 0 ? "up" : "down"} style={{ fontWeight: 700 }}>
-          {potential >= 0 ? "profit" : "loss"} {tri(potential)}
-        </span>
+        <span className="lbl">could make</span>
+        <span className={"num proj" + (potential < 0 ? " neg" : "")}>{signed(potential)}</span>
         <span className="cap">
-          if it sells for ~{money(h.estSellCents)}
+          if it sells for {money(h.estSellCents)}
           {h.estFeesCents ? ` after ${money(h.estFeesCents)} fees` : ""}
         </span>
       </div>

@@ -1,5 +1,5 @@
-// Categories Scout knows about. Thumbnails are drawn SVG tiles (no emoji):
-// `bg` is the tile color, `line` the one filled detail in the drawing.
+// Categories Scout knows about. `thumb` is the default drawing for ProductImage
+// when a deal has no thumb_key; `bg` / `line` are legacy tile colors (unused).
 export const CATEGORIES = [
   { id: "ebikes", label: "E-bikes", bg: "#1D2A28", line: "#6CCBB9", thumb: "ebike" },
   { id: "tools", label: "Tools", bg: "#2B2620", line: "#E0A85A", thumb: "drill" },

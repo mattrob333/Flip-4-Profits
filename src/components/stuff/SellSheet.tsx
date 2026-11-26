@@ -1,39 +1,40 @@
 "use client";
 
-// Sell sheet: Sold for + Fees, live profit preview (the hero), then the reward:
-// SOLD stamp + count-up, or a loss shown as a lesson with 3 answers to save.
+// Sell sheet: Sold for + Fees, live profit preview (the hero). After the sale the
+// sheet becomes a full-viewport takeover. Win: the item scales in (250ms), SOLD
+// lands on the frame's corner, profit counts up (900ms), then the money ladder
+// moves (600ms). Loss: calmer layout, same number size in coral, no stamp, and
+// the lesson question (3 answers) comes first.
 import * as React from "react";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { FieldError, MoneyInput } from "@/components/ui/money-input";
-import { NumberTicker } from "@/components/ui/number-ticker";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/toast";
 import { chipClass } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 import { ArrowIcon, CheckIcon, XIcon } from "@/components/Icons";
-import { Thumb } from "@/components/Thumb";
-import { GoalBar } from "@/components/GoalBar";
+import { ProductImage } from "@/components/ProductImage";
+import { MoneyLadder } from "@/components/MoneyLadder";
 import { lessonAction, sellAction } from "@/app/actions";
-import { goalInfo } from "@/lib/goal";
-import { money, nextGoal, parseMoney, saleProfit, signed, tri } from "@/lib/money";
-import { announceMoney } from "@/lib/motion";
+import { rungsCrossed } from "@/lib/ladder";
+import { dayLabel } from "@/lib/dates";
+import { money, parseMoney, saleProfit, signed, tri } from "@/lib/money";
+import { announceMoney, prefersReducedMotion, tween } from "@/lib/motion";
 import type { HoldingView, SellResult } from "@/lib/ledger";
-import type { GoalState } from "./StuffView";
 
 const LESSONS = ["Paid too much", "Fees surprised me", "Took too long to sell"];
 
-type Done = SellResult & { soldCents: number; feesCents: number; goalBefore: GoalState };
+type Done = SellResult & { soldCents: number; feesCents: number };
 
 export function SellSheet({
   item,
   open,
   onOpenChange,
-  goal,
 }: {
   item: HoldingView;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  goal: GoalState;
 }) {
   // StuffView mounts a new sheet per item (key), so the form starts fresh.
   const [price, setPrice] = React.useState(String(item.estSellCents / 100));
@@ -63,7 +64,6 @@ export function SellSheet({
     setTouched(true);
     if (priceBad || feesBad || busy) return;
     setBusy(true);
-    const before = goal;
     announceMoney(profit >= 0 ? "profit" : "loss");
     const res = await sellAction(h.id, price, fees);
     setBusy(false);
@@ -71,24 +71,29 @@ export function SellSheet({
       setErrs(res.field === "fees" ? { fees: res.error } : { sell: res.error });
       return;
     }
-    setDone({ ...res.data, soldCents: pr, feesCents: Math.max(0, fe), goalBefore: before });
+    setDone({ ...res.data, soldCents: pr, feesCents: Math.max(0, fe) });
   }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent aria-describedby={undefined} onOpenAutoFocus={(e) => {
+      <SheetContent
+        aria-describedby={undefined}
+        className={done ? "takeover" : undefined}
+        overlayClassName={done ? "takeover-bd" : undefined}
+        onOpenAutoFocus={(e) => {
         // Focus and select the price so you can type right away.
         e.preventDefault();
         const el = document.getElementById("sPrice") as HTMLInputElement | null;
         el?.focus();
         el?.select();
-      }}>
+      }}
+      >
         {done ? (
           <SoldResult item={h} done={done} />
         ) : (
           <form onSubmit={submit} noValidate className="contents">
             <div className="sh-head">
-              <Thumb kind={h.thumb} category={h.category} size={48} />
+              <ProductImage kind={h.thumb} photoUrl={h.photoUrl} size={56} />
               <SheetTitle>Sell your {h.short}</SheetTitle>
               <SheetClose className="xbtn" aria-label="Close">
                 <XIcon />
@@ -124,10 +129,10 @@ export function SellSheet({
                   }}
                 />
                 <FieldError id="sFeesErr">{feesErr}</FieldError>
-                <span className="cap" id="feesHint">
-                  Money the selling site keeps. $0 on Craigslist.
-                </span>
               </div>
+              <span className="cap fields-hint" id="feesHint">
+                Fees: money the selling site keeps. $0 on Craigslist and FB Marketplace.
+              </span>
             </div>
             <div className="spread">
               <div className="pb">
@@ -138,7 +143,7 @@ export function SellSheet({
                 <ArrowIcon />
               </span>
               <div className="pb sell">
-                <span className="pb-l">Selling for</span>
+                <span className="pb-l">Sold for</span>
                 <span className="num">{money(priceBad ? 0 : pr)}</span>
               </div>
             </div>
@@ -159,94 +164,150 @@ export function SellSheet({
   );
 }
 
+function heldCopy(days: number) {
+  return days <= 0 ? "the same day you bought it" : days === 1 ? "in 1 day" : `in ${days} days`;
+}
+
 function SoldResult({ item: h, done }: { item: HoldingView; done: Done }) {
   const toast = useToast();
   const [lesson, setLesson] = React.useState("");
+  const [saved, setSaved] = React.useState(false);
   const win = done.profitCents >= 0;
-  const days = done.daysHeld;
-  const g = done.goalBefore;
-  const totalAfter = g.totalProfitCents + done.profitCents;
-  const crossed = done.goalReachedCents != null;
-  const after = crossed
-    ? goalInfo({ flips: g.flips + 1, totalProfitCents: totalAfter, goalCents: nextGoal(g.goalCents), doneCents: g.goalCents })
-    : goalInfo({ flips: g.flips + 1, totalProfitCents: totalAfter, goalCents: g.goalCents, doneCents: g.doneCents });
-  const before = goalInfo(g);
+  const numRef = React.useRef<HTMLSpanElement>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const crossed = rungsCrossed(done.totalProfitBeforeCents, done.totalProfitAfterCents);
+  const reduce = React.useMemo(() => prefersReducedMotion(), []);
+  // Timeline: image 0-250ms, stamp 250-470ms, count 350-1250ms, ladder 1300-1900ms.
+  const COUNT_AT = 350;
+  const LADDER_AT = 1300;
+
+  React.useEffect(() => {
+    btnRef.current?.focus({ preventScroll: true });
+    const draw = (v: number) => {
+      if (numRef.current) numRef.current.textContent = signed(v);
+    };
+    if (reduce) {
+      draw(done.profitCents);
+      return;
+    }
+    let stop = () => {};
+    const t = setTimeout(() => {
+      stop = tween(0, done.profitCents, draw, 900);
+    }, COUNT_AT);
+    return () => {
+      clearTimeout(t);
+      stop();
+    };
+  }, [done.profitCents, reduce]);
 
   async function pick(v: string) {
     if (!v) return;
     setLesson(v);
+    setSaved(false);
     const res = await lessonAction(h.id, v);
     if (!res.ok) return toast(res.error, { tone: "error" });
-    toast("Saved to your log. Good flippers learn from these.");
+    setSaved(true);
   }
 
-  return (
-    <>
-      <div className="sh-head">
-        <Thumb kind={h.thumb} category={h.category} size={48} />
-        <SheetTitle>{win ? "Sold!" : "Sold, at a loss"}</SheetTitle>
-        <SheetClose className="xbtn" aria-label="Close">
-          <XIcon />
-        </SheetClose>
-      </div>
-      {win && (
-        <span className="stamp sold" style={{ top: 76, right: 24 }}>
-          SOLD
-        </span>
-      )}
-      <div className="result" role="status">
-        <NumberTicker value={done.profitCents} from={0} format="signed" className={"big " + (win ? "up" : "down")} kind={win ? "profit" : "loss"} />
-        <span className={win ? "up" : "down"} style={{ fontWeight: 700, marginTop: -4 }}>
-          {win ? "profit" : "loss"} {tri(done.profitCents)} · paid {money(h.buyCents)}, sold {money(done.soldCents)}
-          {done.feesCents ? `, ${money(done.feesCents)} fees` : ""}
-        </span>
-        {win ? (
-          <>
-            <h3>
-              Nice flip. You made {money(done.profitCents)} in {days <= 0 ? "one day" : days === 1 ? "1 day" : `${days} days`}.
-            </h3>
-            <p>
-              {money(done.netCents)} went into your cash. Your worth is now {money(done.worthCents)}.
-            </p>
-          </>
-        ) : (
-          <>
-            <h3>You lost {money(-done.profitCents)} on this one. Every flipper does.</h3>
-            <p>What would you do next time? Your answer is saved so you can talk it over with your parent.</p>
-            <ToggleGroup type="single" className="lesson" value={lesson} onValueChange={pick} aria-label="What would you do next time?">
-              {LESSONS.map((l) => (
-                <ToggleGroupItem key={l} value={l} className={chipClass}>
-                  {lesson === l && <CheckIcon />}
-                  {l}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </>
+  const dates =
+    done.boughtKey === done.soldKey
+      ? `Bought and sold ${dayLabel(done.soldKey)}.`
+      : `Bought ${dayLabel(done.boughtKey)}, sold ${dayLabel(done.soldKey)}.`;
+
+  const close = (
+    <SheetClose className="xbtn to-x" aria-label="Close">
+      <XIcon />
+    </SheetClose>
+  );
+  const math = (
+    <p className="to-math tab">
+      Paid {money(h.buyCents)} · sold for {money(done.soldCents)} · {done.feesCents ? `${money(done.feesCents)} fees` : "no fees"}
+    </p>
+  );
+  const result = (
+    <div className="to-result" role="status">
+      <span className={"num to-num " + (win ? "up" : "down")}>
+        <span ref={numRef}>{reduce ? signed(done.profitCents) : signed(0)}</span>
+        <span className="sr-only"> {signed(done.profitCents)}</span>
+      </span>
+      <span className={"to-lbl " + (win ? "up" : "down")}>
+        {win ? "profit" : "loss"} {tri(done.profitCents)}
+      </span>
+    </div>
+  );
+
+  if (win) {
+    // Win: big product shot with the yellow SOLD stamp on its corner, the profit
+    // counting up in green, short cheer, then the money ladder moving.
+    return (
+      <div className="to-inner win">
+        {close}
+        <div className="to-frame">
+          <ProductImage kind={h.thumb} photoUrl={h.photoUrl} size="hero" />
+          <span className="stamp sold to-stamp">SOLD</span>
+        </div>
+        <SheetTitle className="to-kicker">Sold your {h.short}!</SheetTitle>
+        {result}
+        <h3 className="to-cheer">
+          <span>Nice flip!</span> <span>You made {money(done.profitCents)} {heldCopy(done.daysHeld)}.</span>
+        </h3>
+        {math}
+        <p className="to-p">
+          {dates} Your worth is now {money(done.worthCents)}.
+        </p>
+        {crossed.length > 0 && (
+          <p className="badge profit to-rung">
+            <CheckIcon size={14} /> New rung: {crossed[crossed.length - 1].name}
+          </p>
         )}
-        {crossed ? (
-          <div className="goalrow">
-            <span className="up flex items-center gap-2 font-bold">
-              <CheckIcon /> Goal done: first {money(done.goalReachedCents ?? 0)} profit
-            </span>
-            <GoalBar val={before.max} max={before.max} from={before.val} label={before.title} />
-            <span className="cap text-t2">
-              Next goal: {after.title}. {after.left}.
-            </span>
-          </div>
-        ) : (
-          win && (
-            <div className="w-full">
-              <div className="cap mb-1.5">{after.title}</div>
-              <GoalBar val={after.val} max={after.max} from={g.flips === 0 ? 0 : before.val} label={after.title} />
-            </div>
-          )
-        )}
+        <MoneyLadder
+          profitCents={done.totalProfitAfterCents}
+          fromCents={done.totalProfitBeforeCents}
+          delayMs={reduce ? 0 : LADDER_AT}
+          className="to-ladder"
+        />
         <SheetClose asChild>
-          <Button size="big" className="mt-2">
-            {win ? "Keep flipping" : "Got it"}
+          <Button ref={btnRef} size="big" className="to-go">
+            Keep flipping
           </Button>
         </SheetClose>
       </div>
-    </>
+    );
+  }
+
+  // Loss: calmer. No stamp and no big picture: a small thumbnail, the same size
+  // number in coral, then the lesson question first.
+  return (
+    <div className="to-inner lose">
+      {close}
+      <div className="to-item">
+        <ProductImage kind={h.thumb} photoUrl={h.photoUrl} size={56} />
+        <SheetTitle className="to-kicker">Sold your {h.short}</SheetTitle>
+      </div>
+      {result}
+      {math}
+      <div className="to-lesson">
+        <h3 id="lessonQ">What would you do next time?</h3>
+        <ToggleGroup type="single" className="lesson" value={lesson} onValueChange={pick} aria-labelledby="lessonQ">
+          {LESSONS.map((l) => (
+            <ToggleGroupItem key={l} value={l} className={cn(chipClass, "bg-s2 hover:bg-s3")}>
+              {lesson === l && <CheckIcon />}
+              {l}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <p className="to-saved" role="status">
+          {saved ? "Saved to your log. You can talk it over with your parent." : ""}
+        </p>
+      </div>
+      <p className="to-p to-calm">
+        <span>You lost {money(-done.profitCents)} on this&nbsp;one.</span> <span>Every flipper&nbsp;does.</span>
+      </p>
+      <SheetClose asChild>
+        <Button ref={btnRef} size="big" className="to-go">
+          Got it
+        </Button>
+      </SheetClose>
+    </div>
   );
 }

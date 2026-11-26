@@ -5,7 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Thumb } from "@/components/Thumb";
+import { ProductImage } from "@/components/ProductImage";
 import { HoldingCard } from "./HoldingCard";
 import { SellSheet } from "./SellSheet";
 import { useEnterOnce } from "@/components/Enter";
@@ -13,20 +13,18 @@ import { dayLabel } from "@/lib/dates";
 import { money, signed, tri } from "@/lib/money";
 import type { HoldingView, SoldView } from "@/lib/ledger";
 
-export type GoalState = { flips: number; totalProfitCents: number; goalCents: number; doneCents: number | null };
-
 export function StuffView({
+  initialTab = "hold",
   holdings,
   sold,
   ledger,
-  goal,
 }: {
+  initialTab?: string;
   holdings: HoldingView[];
   sold: SoldView[];
   ledger: React.ReactNode;
-  goal: GoalState;
 }) {
-  const [tab, setTab] = React.useState("hold");
+  const [tab, setTab] = React.useState(initialTab);
   const [selling, setSelling] = React.useState<HoldingView | null>(null);
   const [open, setOpen] = React.useState(false);
   const total = sold.reduce((a, s) => a + s.profitCents, 0);
@@ -38,14 +36,14 @@ export function StuffView({
         <TabsList aria-label="My Stuff sections">
           <TabsTrigger value="hold">Holding ({holdings.length})</TabsTrigger>
           <TabsTrigger value="sold">Sold ({sold.length})</TabsTrigger>
-          <TabsTrigger value="ledger">Ledger</TabsTrigger>
+          <TabsTrigger value="ledger">Money log</TabsTrigger>
         </TabsList>
       </div>
       <div className="left">
         <TabsContent value="hold" forceMount className="pane">
           <div className="sec-head">
             <h2>Holding</h2>
-            <span className="cap">Valued at what you paid</span>
+            <span className="cap">Counted at what you paid</span>
           </div>
           <div className="flex flex-col gap-4">
             {holdings.length ? (
@@ -83,7 +81,7 @@ export function StuffView({
             <ul className="rows">
               {sold.map((s) => (
                 <li key={s.id} className="srow">
-                  <Thumb kind={s.thumb} category={s.category} size={48} />
+                  <ProductImage kind={s.thumb} photoUrl={s.photoUrl} size={64} />
                   <div className="min-w-0">
                     <div className="dt">{s.title}</div>
                     <div className="dm">
@@ -111,7 +109,7 @@ export function StuffView({
       <TabsContent value="ledger" forceMount className="pane ledger-pane">
         {ledger}
       </TabsContent>
-      {selling && <SellSheet key={selling.id} item={selling} open={open} onOpenChange={setOpen} goal={goal} />}
+      {selling && <SellSheet key={selling.id} item={selling} open={open} onOpenChange={setOpen} />}
     </Tabs>
   );
 }

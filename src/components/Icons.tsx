@@ -43,3 +43,6 @@ export const BoxIcon = ({ size = 22, ...p }: P) => (
 export const LockIcon = ({ size = 14, ...p }: P) => (
   <svg {...base(size, 2, p)}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
 );
+export const InfoIcon = ({ size = 16, ...p }: P) => (
+  <svg {...base(size, 2, p)}><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.6" r=".6" fill="currentColor" /></svg>
+);

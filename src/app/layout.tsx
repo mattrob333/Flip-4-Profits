@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 // Self-hosted fonts (no Google Fonts call): Archivo with the width axis for numbers
-// and headings, Hanken Grotesk for body, Martian Mono for ledger dates.
+// and headings, Hanken Grotesk for body. No monospace: numbers use tabular-nums.
 import "@fontsource-variable/archivo/wdth.css";
 import "@fontsource-variable/hanken-grotesk";
-import "@fontsource-variable/martian-mono";
 import "./globals.css";
 import { TopNav, BottomTabs } from "@/components/NavLinks";
 import { CashPill } from "@/components/CashPill";

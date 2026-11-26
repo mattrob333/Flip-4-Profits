@@ -13,7 +13,7 @@ export type Deal = {
   category: string; source: string; url: string | null; emoji: string;
   asking_cents: number; est_sell_cents: number; est_fees_cents: number;
   score: number; distance_mi: number | null; risk_flags: string; why: string | null;
-  status: string; lane: string; created_at: string;
+  status: string; lane: string; created_at: string; photo_url: string | null;
 };
 
 export type InventoryItem = {
@@ -21,6 +21,7 @@ export type InventoryItem = {
   category: string; emoji: string;
   buy_cents: number; est_sell_cents: number; est_fees_cents: number; condition_notes: string; status: string;
   sell_cents: number | null; fees_cents: number | null; bought_at: string; sold_at: string | null;
+  photo_url: string | null;
 };
 
 export type Transaction = {
@@ -36,17 +37,18 @@ export type DealView = {
   id: number; title: string; short: string; category: string; categoryLabel: string;
   source: string; sourceLabel: string; distance: number | null;
   askingCents: number; sellCents: number; feesCents: number; profitCents: number;
-  score: number; flags: string[]; why: string; thumb: string; status: "new" | "watching"; lane: string;
+  score: number; flags: string[]; why: string; thumb: string; photoUrl: string | null;
+  status: "new" | "watching"; lane: string;
 };
 
 export type HoldingView = {
-  id: number; title: string; short: string; category: string; thumb: string;
+  id: number; title: string; short: string; category: string; thumb: string; photoUrl: string | null;
   buyCents: number; estSellCents: number; estFeesCents: number; notes: string;
   listed: boolean; boughtKey: string; daysHeld: number;
 };
 
 export type SoldView = {
-  id: number; title: string; short: string; category: string; thumb: string;
+  id: number; title: string; short: string; category: string; thumb: string; photoUrl: string | null;
   buyCents: number; sellCents: number; feesCents: number; profitCents: number; soldKey: string;
 };
 
@@ -130,7 +132,7 @@ function toDealView(d: Deal): DealView {
     source: d.source, sourceLabel: sourceLabel(d.source), distance: d.distance_mi,
     askingCents: d.asking_cents, sellCents: d.est_sell_cents, feesCents: d.est_fees_cents,
     profitCents: d.est_sell_cents - d.asking_cents - d.est_fees_cents,
-    score: d.score, flags, why: d.why ?? "", thumb: thumbOf(d),
+    score: d.score, flags, why: d.why ?? "", thumb: thumbOf(d), photoUrl: d.photo_url ?? null,
     status: d.status === "watching" ? "watching" : "new", lane: d.lane,
   };
 }
@@ -153,7 +155,7 @@ export function listHoldings(): HoldingView[] {
   return rows.map((r) => {
     const k = dayKey(r.bought_at);
     return {
-      id: r.id, title: r.title, short: short(r), category: r.category, thumb: thumbOf(r),
+      id: r.id, title: r.title, short: short(r), category: r.category, thumb: thumbOf(r), photoUrl: r.photo_url ?? null,
       buyCents: r.buy_cents, estSellCents: r.est_sell_cents, estFeesCents: r.est_fees_cents ?? 0,
       notes: r.condition_notes, listed: r.status === "listed", boughtKey: k, daysHeld: daysBetween(k, today),
     };
@@ -163,7 +165,7 @@ export function listHoldings(): HoldingView[] {
 export function listSold(): SoldView[] {
   const rows = getDb().prepare("SELECT * FROM inventory WHERE status = 'sold' ORDER BY sold_at DESC, id DESC").all() as InventoryItem[];
   return rows.map((r) => ({
-    id: r.id, title: r.title, short: short(r), category: r.category, thumb: thumbOf(r),
+    id: r.id, title: r.title, short: short(r), category: r.category, thumb: thumbOf(r), photoUrl: r.photo_url ?? null,
     buyCents: r.buy_cents, sellCents: r.sell_cents ?? 0, feesCents: r.fees_cents ?? 0,
     profitCents: saleProfit(r.buy_cents, r.sell_cents ?? 0, r.fees_cents ?? 0),
     soldKey: dayKey(r.sold_at ?? r.bought_at),
@@ -243,7 +245,7 @@ export type WorthDay = {
   /** Worth at the end of the day, or null before you started. */
   worthCents: number | null;
   startCents: number;
-  events: { kind: "buy" | "sell"; what: string; profitCents: number | null }[];
+  events: { kind: "buy" | "sell"; what: string; amountCents: number; profitCents: number | null }[];
 };
 
 /**
@@ -279,7 +281,7 @@ export function getWorthSeries(): WorthDay[] {
       worthCents: started ? cash + held : null,
       startCents: deposits,
       events: ledger.filter((e) => e.dayKey === k && (e.kind === "buy" || e.kind === "sell"))
-        .map((e) => ({ kind: e.kind as "buy" | "sell", what: e.what, profitCents: e.profitCents })),
+        .map((e) => ({ kind: e.kind as "buy" | "sell", what: e.what, amountCents: e.amountCents, profitCents: e.profitCents })),
     });
   }
   return days;
@@ -325,9 +327,9 @@ export function buyDeal(dealId: number, priceCents?: number): BuyResult {
       throw new LedgerError(`You need ${money(price - cash)} more. You have ${money(cash)} cash.`, "price");
     }
     const inv = db.prepare(
-      `INSERT INTO inventory (deal_id, title, short_title, thumb_key, category, buy_cents, est_sell_cents, est_fees_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(deal.id, deal.title, deal.short_title, deal.thumb_key, deal.category, price, deal.est_sell_cents, deal.est_fees_cents);
+      `INSERT INTO inventory (deal_id, title, short_title, thumb_key, category, buy_cents, est_sell_cents, est_fees_cents, photo_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(deal.id, deal.title, deal.short_title, deal.thumb_key, deal.category, price, deal.est_sell_cents, deal.est_fees_cents, deal.photo_url ?? null);
     const invId = Number(inv.lastInsertRowid);
     db.prepare("INSERT INTO transactions (type, amount_cents, inventory_id, note) VALUES ('buy', ?, ?, ?)")
       .run(-price, invId, `Bought ${short(deal)}`);
@@ -360,6 +362,12 @@ export type SellResult = {
   cashCents: number;
   worthCents: number;
   daysHeld: number;
+  /** Local day keys ("YYYY-MM-DD") the item was bought and sold, for honest "in N days" copy. */
+  boughtKey: string;
+  soldKey: string;
+  /** Total profit from every sale, before and after this one (for the money ladder). */
+  totalProfitBeforeCents: number;
+  totalProfitAfterCents: number;
   /** Set when this sale reached the goal (the goal amount that was reached). */
   goalReachedCents: number | null;
 };
@@ -401,12 +409,19 @@ export function sellItem(invId: number, sellCents: number, feesCents: number): S
       setSetting("goal_cents", String(nextGoal(goalCents)));
       log("goal", `Goal done: made ${money(goalCents)} profit.`);
     }
+    const soldAt = (db.prepare("SELECT sold_at FROM inventory WHERE id = ?").get(invId) as { sold_at: string }).sold_at;
+    const boughtKey = dayKey(item.bought_at);
+    const soldKey = dayKey(soldAt);
     return {
       profitCents: profit,
       netCents: sellCents - feesCents,
       cashCents: after.cash,
       worthCents: after.netWorth,
-      daysHeld: daysBetween(dayKey(item.bought_at), todayKey()),
+      daysHeld: Math.max(0, daysBetween(boughtKey, soldKey)),
+      boughtKey,
+      soldKey,
+      totalProfitBeforeCents: before.totalProfit,
+      totalProfitAfterCents: after.totalProfit,
       goalReachedCents: reached,
     };
   })();

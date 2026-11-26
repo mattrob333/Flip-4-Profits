@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 
 // Filter / category chip. Pressed = light fill with dark ink.
 export const chipClass = cn(
-  "flex-none inline-flex items-center gap-2 h-11 px-4 rounded-lg whitespace-nowrap",
-  "bg-s2 shadow-ring text-t2 font-semibold text-[15px]",
-  "transition-[color,box-shadow] duration-150 hover:text-t1 hover:shadow-ring-h",
+  "flex-none inline-flex items-center gap-2 h-11 px-4 rounded-[10px] whitespace-nowrap",
+  "bg-s1 text-t2 font-semibold text-[15px]",
+  "transition-[color,background-color] duration-150 hover:text-t1 hover:bg-s2",
   "aria-pressed:bg-t1 aria-pressed:text-s0 aria-pressed:shadow-none aria-pressed:hover:text-s0",
   "data-[state=on]:bg-t1 data-[state=on]:text-s0 data-[state=on]:shadow-none",
 );

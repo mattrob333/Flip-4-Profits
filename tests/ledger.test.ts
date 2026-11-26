@@ -10,6 +10,7 @@ import { resetDb, closeDb, getDb } from "../src/lib/db";
 import * as L from "../src/lib/ledger";
 import { dealProfit, saleProfit, parseMoney, signed, money } from "../src/lib/money";
 import { goalInfo } from "../src/lib/goal";
+import { ladderState, rungsCrossed } from "../src/lib/ladder";
 
 // The database opens lazily on first use, so this runs before it is created.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "flip-test-"));
@@ -169,4 +170,43 @@ test("money helpers", () => {
   assert.equal(signed(-1200), "−$12");
   assert.equal(signed(7500), "+$75");
   assert.equal(money(1250), "$12.50");
+});
+
+test("money ladder: rungs, next rung, and what a sale crosses", () => {
+  const fresh = ladderState(0);
+  assert.equal(fresh.done, 0);
+  assert.equal(fresh.next?.name, "Rookie");
+  assert.equal(fresh.leftCents, 10000);
+  const demo = ladderState(7500);
+  assert.equal(demo.next?.name, "Rookie");
+  assert.equal(demo.leftCents, 2500);
+  // $75 of $100: the track is filled 75% of the way from $0 to the first rung, not up to it.
+  assert.equal(demo.toNext, 0.75);
+  assert.ok(demo.fill > 0 && demo.fill < 10 / 90);
+  const after = ladderState(10500);
+  assert.equal(after.done, 1);
+  assert.equal(after.next?.name, "Hustler");
+  assert.deepEqual(rungsCrossed(7500, 10500).map((r) => r.name), ["Rookie"]);
+  assert.deepEqual(rungsCrossed(10500, 9000), []);
+  assert.equal(ladderState(300000).next, null);
+  assert.equal(ladderState(-500).done, 0);
+});
+
+test("sell result carries real bought/sold days and profit before/after", () => {
+  const a = L.buyDeal(dealId("DeWalt drill combo"), 8000);
+  getDb().prepare("UPDATE inventory SET bought_at = datetime('now','-2 days') WHERE id = ?").run(a.inventoryId);
+  const r = L.sellItem(a.inventoryId, 15500, 0);
+  assert.equal(r.daysHeld, 2);
+  assert.notEqual(r.boughtKey, r.soldKey);
+  assert.equal(r.totalProfitBeforeCents, 0);
+  assert.equal(r.totalProfitAfterCents, 7500);
+});
+
+test("photo_url: listing photo carries from the deal to your stuff", () => {
+  const id = dealId("Ryobi leaf blower");
+  assert.equal(L.listDeals().find((d) => d.id === id)?.photoUrl, null);
+  getDb().prepare("UPDATE deals SET photo_url = ? WHERE id = ?").run("https://example.com/blower.jpg", id);
+  assert.equal(L.listDeals().find((d) => d.id === id)?.photoUrl, "https://example.com/blower.jpg");
+  L.buyDeal(id);
+  assert.equal(L.listHoldings()[0].photoUrl, "https://example.com/blower.jpg");
 });

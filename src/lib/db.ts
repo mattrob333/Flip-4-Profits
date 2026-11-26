@@ -111,6 +111,9 @@ const ADDED_COLUMNS: [table: string, column: string, ddl: string][] = [
   ["inventory", "short_title", "TEXT"],
   ["inventory", "thumb_key", "TEXT"],
   ["inventory", "est_fees_cents", "INTEGER NOT NULL DEFAULT 0"],
+  // Real listing photo (set by the scrapers later). Null = show the drawn product tile.
+  ["deals", "photo_url", "TEXT"],
+  ["inventory", "photo_url", "TEXT"],
 ];
 
 function migrate(db: Database.Database) {
